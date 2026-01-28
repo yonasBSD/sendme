@@ -22,7 +22,7 @@ use indicatif::{
     HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle,
 };
 use iroh::{
-    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher},
+    address_lookup::{dns::DnsAddressLookup, pkarr::PkarrPublisher},
     Endpoint, EndpointAddr, RelayMode, RelayUrl, SecretKey, TransportAddr,
 };
 use iroh_blobs::{
@@ -206,7 +206,7 @@ pub struct SendArgs {
     /// to use the biggest type of ticket that includes both relay and
     /// address information.
     ///
-    /// Generally, the more information the higher the likelyhood of
+    /// Generally, the more information the higher the likelihood of
     /// a successful connection, but also the bigger a ticket to connect.
     ///
     /// This is most useful for debugging which methods of connection
@@ -248,7 +248,7 @@ pub struct ReceiveArgs {
 pub enum AddrInfoOptions {
     /// Only the Endpoint ID is added.
     ///
-    /// This usually means that iroh-dns discovery is used to find address information.
+    /// This usually means that iroh-dns address lookup is used to find address information.
     #[default]
     Id,
     /// Includes the Endpoint ID and both the relay URL, and the direct addresses.
@@ -650,13 +650,13 @@ async fn send(args: SendArgs) -> anyhow::Result<()> {
         .secret_key(secret_key)
         .relay_mode(relay_mode.clone());
     if args.ticket_type == AddrInfoOptions::Id {
-        builder = builder.discovery(PkarrPublisher::n0_dns());
+        builder = builder.address_lookup(PkarrPublisher::n0_dns());
     }
     if let Some(addr) = args.common.magic_ipv4_addr {
-        builder = builder.bind_addr_v4(addr);
+        builder = builder.bind_addr(addr)?;
     }
     if let Some(addr) = args.common.magic_ipv6_addr {
-        builder = builder.bind_addr_v6(addr);
+        builder = builder.bind_addr(addr)?;
     }
 
     // use a flat store - todo: use a partial in mem store instead
@@ -1006,13 +1006,13 @@ async fn receive(args: ReceiveArgs) -> anyhow::Result<()> {
         .relay_mode(args.common.relay.into());
 
     if ticket.addr().relay_urls().next().is_none() && ticket.addr().ip_addrs().next().is_none() {
-        builder = builder.discovery(DnsDiscovery::n0_dns());
+        builder = builder.address_lookup(DnsAddressLookup::n0_dns());
     }
     if let Some(addr) = args.common.magic_ipv4_addr {
-        builder = builder.bind_addr_v4(addr);
+        builder = builder.bind_addr(addr)?;
     }
     if let Some(addr) = args.common.magic_ipv6_addr {
-        builder = builder.bind_addr_v6(addr);
+        builder = builder.bind_addr(addr)?;
     }
     let endpoint = builder.bind().await?;
     let dir_name = format!(".sendme-recv-{}", ticket.hash().to_hex());
